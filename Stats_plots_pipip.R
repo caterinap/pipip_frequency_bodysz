@@ -8,133 +8,153 @@
 # Under Git repository - pipip_frequency_bodysz
 
 # Load required libraries
-library(nlme)
+library(lme4)
+library(lmerTest)
 library(ggplot2)
 
+# Set working directory
+setwd("path")
 
 #### Mist-net dataset analyses ####
 
 # Read data
-capt<-read.table("./data_pipip_capture.txt",h=T)
-capt$ANNEE<-as.factor(capt$ANNEE)
-capt<-capt[!"Age" %in% "Imm"]
+capt<-read.table("/data_pipip_capture.txt",h=T)
+capt$Year<-as.factor(capt$Year)
+#remove Immature individuals
+capt<-capt[!"Age" %in% "Immature"]
 #remove 2 outliers
-capt<-subset(capt,Ab<40)
-names(capt)[14]<-"Bio7"
+capt<-subset(capt,Forearm_length_mm<40)
+names(capt)[names(capt) %in% c("Worldclim1","Worldclim7","Worldclim10",
+                               "Worldclim11","Worldclim12","Worldclim16")]<-c("Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")
 
 # PCA of environmental variables from Worldclim
-PCAcapt<-prcomp(capt  [,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T)
+PCAcapt<-prcomp(capt[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T)
 capt$Prin_comp_1<-as.data.frame(PCAcapt$x)[,1]
 capt$Prin_comp_2<-as.data.frame(PCAcapt$x)[,2]
 capt$Prin_comp_3<-as.data.frame(PCAcapt$x)[,3]
-summary(PCAcapt,scale=T)
+summary(PCAcapt)
 
 # Extract loadings
-write.csv(PCAcapt$rotation,"PCAloadCAPT.csv")
+#write.csv(PCAcapt$rotation,"PCAloadCAPT.csv")
 
 # Model
-lmeCapt<-lme(Ab~Sexe+Prin_comp_1+Prin_comp_2,random=~ 1|CLE_Comm/ANNEE,na.action=na.omit, data=capt)
-lmeCaptRE<-lm(Ab~Sexe+Prin_comp_1+Prin_comp_2,na.action=na.omit, data=capt)
-anova(lmeCapt,lmeCaptRE) #ok, with random effect model is better
+lmeCapt<-lmer(Forearm_length_mm~Sex+day_of_year+Prin_comp_1+Prin_comp_2 +(1|Year/Locality_id),na.action=na.omit, data=capt)
 summary(lmeCapt)
-anova(lmeCapt)
 
-# Sensitivity analysis: analyse separately East and west
-captW<-subset(capt,X<349356)
-lmeCaptW<-lme(Ab~Sexe+Prin_comp_1+Prin_comp_2,random=~ 1|CLE_Comm/ANNEE,na.action=na.omit, data=captW)
+# check model assumptions
+plot(lmeCapt) #heteroscedasticity
+hist(residuals(lmeCapt)) #normality of residuals
+qqnorm(resid(lmeCapt))
+qqline(resid(lmeCapt))
+
+# Sensitivity analysis: subsampling of the dense areas
+captW<-subset(capt,(X<349356 & Y>2155220))
+lmeCaptW<-lmer(Forearm_length_mm~Sex+day_of_year+Prin_comp_1+Prin_comp_2+(1|Year/Locality_id),na.action=na.omit, data=captW)
 summary(lmeCaptW)
-anova(lmeCaptW)
-
-captE<-subset(capt,X>349356)
-lmeCaptE<-lme(Ab~Sexe+Prin_comp_1+Prin_comp_2,random=~ 1|CLE_Comm/ANNEE,na.action=na.omit, data=captE)
-summary(lmeCaptE)
-anova(lmeCaptE)
+plot(lmeCaptW) #heteroscedasticity
+hist(residuals(lmeCaptW)) #normality of residuals
+qqnorm(resid(lmeCaptW))
+qqline(resid(lmeCaptW))
 
 
 
 #### Acoustic dataset analyses ####
 
 # Read and prepare data
-sound<-read.csv('./data_pipip_sound.csv',h=T)
+sound<-read.csv('/data_pipip_sound.csv',h=T)
 # Pipip freq is between 41 and 52 KHz
 sound<-subset(sound, LowFc<52)
 # Remove island
-sound<-subset(sound, id_cir!=48 & id_cir!=49)
+sound<-subset(sound, circuit_id!=48 & circuit_id!=49)
 # Filter out "extreme" slope QCF
 sound<-subset(sound, -5<SlopeQCF)
-sound<-subset(sound,SlopeQCF<1)
+sound<-subset(sound, SlopeQCF<1)
 # Remove 3rd survey (very few)
-sound<-subset(sound, passage!=3 & passage!=4)
-# Restruc to altitude<500 m
-sound<-subset(sound, alti<500)
-# Remove other species  
-sound<-subset(sound,rf.pred!='Pipnat')
-sound<-subset(sound,rf.pred!='Pippyg')
+sound<-subset(sound, survey %in% c(1,2))
+# Restruc to altitudetude<500 m
+sound<-subset(sound, altitude<500)
 # Tranform into factor and remove missing data
-sound$id_cir<-as.factor(sound$id_cir)
-sound$id_tron<-as.factor(sound$id_tron)
-sound$passage<-as.factor(sound$passage)
-sound<-sound[!is.na(sound$b1MN),]
+sound$circuit_id<-as.factor(sound$circuit_id)
+sound$segment_id<-as.factor(sound$segment_id)
+sound$survey<-as.factor(sound$survey)
+#remove NA's in dataset
+sound<-sound[!is.na(sound$Worldclim1),]
 
 # Rename in order to be the same as mist-net data
-names(sound)[c(128,137:144)]<-c("altitude","Bio10","Bio11","Bio12","Bio1","Bio7","Bio15","Bio16","Bio18")
+names(sound)[names(sound) %in% c("Worldclim10","Worldclim11","Worldclim12","Worldclim1",
+                               "Worldclim7","Worldclim16")]<-c("Bio10","Bio11","Bio12","Bio1","Bio7","Bio16")
 
 # PCA of environmental variables from Worldclim
-PCAsound<-prcomp(sound[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T,na.rm=T)
+PCAsound<-prcomp(sound[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T)
 sound$Prin_comp_1<-as.data.frame(PCAsound$x)[,1]
 sound$Prin_comp_2<-as.data.frame(PCAsound$x)[,2]
-summary(PCAsound,scale=T)
+summary(PCAsound)
+
 
 # Extract loadings
-write.csv(PCAsound$rotation,"PCAloadSOUND.csv")
+#write.csv(PCAsound$rotation,"PCAloadSOUND.csv")
 
 # Model
-lmeSound<-lme(LowFc~SlopeQCF+passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=sound)
-lmeSoundRE<-lm(LowFc~SlopeQCF+jour+Prin_comp_1+Prin_comp_2,na.action=na.omit, data=sound)
-anova(lmeSound,lmeSoundRE) #ok, with random effect model is better
+lmeSound<-lmer(LowFc~SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=sound)
 summary(lmeSound)
-anova(lmeSound)
 
+
+# check model assumptions
+plot(lmeSound) #heteroscedasticity
+hist(residuals(lmeSound)) #normality of residuals
+qqnorm(resid(lmeSound))
+qqline(resid(lmeSound))
+
+# analysis using only the June survey (survey 1)
+lmeSound1<-lmer(LowFc~SlopeQCF+day_of_year+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=subset(sound,survey==1))
+summary(lmeSound1)
+plot(lmeSound1) #heteroscedasticity
+hist(residuals(lmeSound1)) #normality of residuals
+
+# analysis using information on the day of the year (instead of survey)
+lmeSound2<-lmer(LowFc~SlopeQCF+day_of_year+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=subset(sound,survey==1))
+summary(lmeSound2)
+plot(lmeSound2) #heteroscedasticity
+hist(residuals(lmeSound2)) #normality of residuals
 
 # Sensitivity analysis: the results hold with/without local temp in the model?
-sound2<-sound[!is.na(sound$temp),]
-lmeSoundTEMP<-lme(LowFc~SlopeQCF+temp+passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=sound2)
-lmeSoundNOTEMP<-lme(LowFc~SlopeQCF+passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=sound2)
-anova(lmeSoundTEMP,lmeSoundNOTEMP) #with temperature it is better
+sound2<-sound[!is.na(sound$temperature_degreeC),]
+lmeSoundTEMP<-lmer(LowFc~temperature_degreeC+SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=sound2)
+lmeSoundNOTEMP<-lmer(LowFc~SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=sound2)
+anova(lmeSoundTEMP,lmeSoundNOTEMP) #without temperature it is better
 summary(lmeSoundTEMP)
 summary(lmeSoundNOTEMP)
 
-# Sensitivity analysis: the results hold with/without SlopeQCF?
-lmeSoundSlope<-lme(LowFc~passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=sound)
-anova(lmeSoundSlope)
-summary(lmeSoundSlope)
+# Sensitivity analysis: subsampling of the dense areas
+plot(Y~X,data=sound)
+abline(v=410000)
+abline(h=2155220)
+soundN<-subset(sound,(X>410000 & Y>2155220))
 
-
-# Sensitivity analysis: the results hold when south circuits are removed from the analysis?
-soundN<-subset(sound,Y>2155220)
-lmeSoundN<-lme(LowFc~SlopeQCF+passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=soundN)
+lmeSoundN<-lmer(LowFc~SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_2+ (1|circuit_id/segment_id),na.action=na.omit, data=soundN)
 summary(lmeSoundN)
-anova(lmeSoundN)
 
-soundS<-subset(sound,Y<2155220)
-lmeSoundS<-lme(LowFc~SlopeQCF+passage+Prin_comp_1+Prin_comp_2,random=~ 1|id_cir,na.action=na.omit, data=soundS)
+
+# Sensitivity analysis: potential confusion between P. pipistrellus and P. pygmaeus - analyse only South ####REMOVE?
+soundS<-subset(sound,(Y<2155220))
+lmeSoundS<-lmer(LowFc~SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_2+ (1|circuit_id/segment_id),na.action=na.omit, data=soundS)
 summary(lmeSoundS)
-anova(lmeSoundS)
+
 
 
 
 #################################### FIGURES #############################################
 
 #### Fig1: PCA plots #####
-PCAsound<-prcomp(sound[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T,na.rm=T)
+PCAsound<-prcomp(sound[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T)
 PCAcapt<-prcomp(capt[,c("X","Y","Bio1","Bio7","Bio10","Bio11","Bio12","Bio16")],center=T,scale=T)
 
 ##biplots
 pdf("PCAs.pdf", height = 7.5, width = 14)
 par(mfrow=c(1,2),mar = c(1,5,1,2))
-biplot(PCAcapt,scale=T,xlabs=rep("o", nrow(capt)),expand=0.9,xlab="PC1: 58%",ylab="PC2: 29%",cex.lab=1.5)
+biplot(PCAcapt,scale=T,xlabs=rep("o", nrow(capt)),expand=0.9,xlab="M.PC1: 58%",ylab="M.PC2: 29%",cex.lab=1.5)
 text(-40, 42, "a",cex=1.5)
-biplot(PCAsound,scale=T,xlabs=rep("o", nrow(sound)),expand=1.2,xlim=c(-0.02,0.032),xlab="PC1: 59%",ylab="PC2: 34%",cex.lab=1.5)
+biplot(PCAsound,scale=T,xlabs=rep("o", nrow(sound)),expand=1.2,xlim=c(-0.02,0.032),xlab="A.PC1: 59%",ylab="A.PC2: 34%",cex.lab=1.5)
 text(-65, 175, "b",cex=1.5)
 dev.off()
 
@@ -167,7 +187,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 
 # Plot of capture dataset
-p1<-ggplot(capt, aes(x = Prin_comp_1, y = Ab)) +
+p1<-ggplot(capt, aes(x = Prin_comp_1, y = Forearm_length_mm)) +
   theme_bw(base_size=20) +
   xlab("PC1")  +      ylab("Forearm length (mm)")  +
   #ggtitle("Capture dataset") +
@@ -182,7 +202,7 @@ p1<-ggplot(capt, aes(x = Prin_comp_1, y = Ab)) +
   scale_y_continuous(breaks=seq(28.5, 37.5, 2))+
   scale_x_continuous(breaks=seq(-7, 4, 2))
 p1
-ggsave("bd_sz.pdf", width=16, height=16, units="cm")
+#ggsave("bd_sz.pdf", width=16, height=16, units="cm")
 
 # Plot of acoustic dataset
 p2<- ggplot(sound, aes(x = Prin_comp_2, y = LowFc)) + 
@@ -200,10 +220,10 @@ p2<- ggplot(sound, aes(x = Prin_comp_2, y = LowFc)) +
   geom_text(data = NULL, x = -2.7, y = 52.1, label = "b",size=10)+
   scale_y_continuous(breaks=seq(42, 52.5, 3))
 p2
-ggsave("freq.pdf", width=16, height=16, units="cm")
+#ggsave("freq.pdf", width=16, height=16, units="cm")
 
 
 # Plot the two together
-png("Plots_pipgeo.png", width=320, height=160, units="cm", res=600)
+pdf("Plots_pipgeo.pdf", height = 7.5, width = 14)
 multiplot(p1, p2, cols=2)
 dev.off()
