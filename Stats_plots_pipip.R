@@ -105,14 +105,14 @@ hist(residuals(lmeSound)) #normality of residuals
 qqnorm(resid(lmeSound))
 qqline(resid(lmeSound))
 
-# analysis using only the June survey (survey 1)
+# analysis using only the June survey (survey 1, but adding the day of the year)
 lmeSound1<-lmer(LowFc~SlopeQCF+day_of_year+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=subset(sound,survey==1))
 summary(lmeSound1)
 plot(lmeSound1) #heteroscedasticity
 hist(residuals(lmeSound1)) #normality of residuals
 
 # analysis using information on the day of the year (instead of survey)
-lmeSound2<-lmer(LowFc~SlopeQCF+day_of_year+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=subset(sound,survey==1))
+lmeSound2<-lmer(LowFc~SlopeQCF+day_of_year+call_abundance+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=sound)
 summary(lmeSound2)
 plot(lmeSound2) #heteroscedasticity
 hist(residuals(lmeSound2)) #normality of residuals
