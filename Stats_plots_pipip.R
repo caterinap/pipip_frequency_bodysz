@@ -186,11 +186,11 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
   }
 }
 
-# Plot of capture dataset
+# Plot of mist net dataset
 p1<-ggplot(capt, aes(x = Prin_comp_1, y = Forearm_length_mm)) +
   theme_bw(base_size=20) +
-  xlab("PC1")  +      ylab("Forearm length (mm)")  +
-  #ggtitle("Capture dataset") +
+  xlab("M.PC1")  +      ylab("Forearm length (mm)")  +
+  #ggtitle("Mist net dataset") +
   geom_point() +
   stat_smooth(method = "lm", col = "black")+
   theme(axis.title.x=element_text(vjust=-1.5)) +
@@ -207,7 +207,7 @@ p1
 # Plot of acoustic dataset
 p2<- ggplot(sound, aes(x = Prin_comp_2, y = LowFc)) + 
   theme_bw(base_size=20) +
-  xlab("PC2")  +      ylab("Characteristic frequency (MHz)")  +
+  xlab("A.PC2")  +      ylab("Characteristic frequency (MHz)")  +
   #ggtitle("Acoustic dataset")+
   geom_point() + 
   stat_smooth(method = glm, col = "black") +
