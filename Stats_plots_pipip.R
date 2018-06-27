@@ -47,6 +47,10 @@ hist(residuals(lmeCapt)) #normality of residuals
 qqnorm(resid(lmeCapt))
 qqline(resid(lmeCapt))
 
+# Sensitivity analysis: use only Year 2009 (overlap with acoustic dataset)
+lmeCapt2<-lmer(Forearm_length_mm~Sex+day_of_year+Prin_comp_1+Prin_comp_2 +(1|Locality_id),na.action=na.omit, data=subset(capt,Year==2009))
+summary(lmeCapt2)
+
 # Sensitivity analysis: subsampling of the dense areas
 captW<-subset(capt,(X<349356 & Y>2155220))
 lmeCaptW<-lmer(Forearm_length_mm~Sex+day_of_year+Prin_comp_1+Prin_comp_2+(1|Year/Locality_id),na.action=na.omit, data=captW)
@@ -55,6 +59,18 @@ plot(lmeCaptW) #heteroscedasticity
 hist(residuals(lmeCaptW)) #normality of residuals
 qqnorm(resid(lmeCaptW))
 qqline(resid(lmeCaptW))
+
+# Check relationship between sex-ratio and PCs
+capt$scount <- 1
+capt2 <- aggregate(scount ~ Locality_id + Sex, data=capt, FUN=sum)
+capt2<- reshape2::dcast(capt2,Locality_id ~Sex)
+capt2$SR <- capt2$M/capt2$F
+geoinfo <- unique(capt[,c("Locality_id","altitude","Prin_comp_1","Prin_comp_2")])
+capt2<- merge(capt2,geoinfo,by="Locality_id",all.y=F)
+
+summary(m1 <- lm(log(SR)~Prin_comp_1+Prin_comp_2,data=capt2)) #no effect
+plot(m1)
+hist(residuals(m1))
 
 
 
@@ -124,6 +140,10 @@ lmeSoundNOTEMP<-lmer(LowFc~SlopeQCF+survey+call_abundance+Prin_comp_1+Prin_comp_
 anova(lmeSoundTEMP,lmeSoundNOTEMP) #without temperature it is better
 summary(lmeSoundTEMP)
 summary(lmeSoundNOTEMP)
+
+# Sensitivity analysis: the results hold without call abundance in the model?
+lmeSound3<-lmer(LowFc~SlopeQCF+survey+Prin_comp_1+Prin_comp_2+(1|circuit_id/segment_id),na.action=na.omit, data=sound)
+summary(lmeSound3)
 
 # Sensitivity analysis: subsampling of the dense areas
 plot(Y~X,data=sound)
